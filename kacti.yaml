@@ -1,0 +1,8 @@
+---
+kacti-tests:
+  - name: pwnkit
+    image: quay.io/the-worst-containers/pwnkit:v0.2
+    namespace: kacti
+  - name: log4shell
+    image: quay.io/smileyfritz/log4shell-app:v0.5
+    namespace: kacti
