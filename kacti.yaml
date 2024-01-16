@@ -1,8 +1,14 @@
 ---
 kacti-tests:
   - name: pwnkit
+    description: |
+      Tests whether container images vulnerable to pwnkit (CVE-2021-4034) 
+      are accepted the cluster
     image: quay.io/the-worst-containers/pwnkit:v0.2
     namespace: kacti
   - name: log4shell
+    description: |
+      Tests whether container images vulnerable to Log4Shell (CVE-2021-44228)
+      are accepted by the cluster
     image: quay.io/smileyfritz/log4shell-app:v0.5
     namespace: kacti
