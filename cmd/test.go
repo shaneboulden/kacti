@@ -76,14 +76,15 @@ kacti-tests:
 }
 
 func runTest(file string) int {
-	// set up k8s auth
 	var kubeconfig *string
-
-	if home := homedir.HomeDir(); home != "" {
+	if os.Getenv("KUBECONFIG") != "" {
+		kubeconfig = flag.String("kubeconfig", os.Getenv("KUBECONFIG"), "environment variable holding kubeconfig")
+	} else if home := homedir.HomeDir(); home != "" {
 		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
 	} else {
 		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
 	}
+
 	flag.Parse()
 	fmt.Println("Setting up kubeconfig from: " + *kubeconfig)
 
