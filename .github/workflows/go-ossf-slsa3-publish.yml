@@ -16,9 +16,6 @@ on:
   workflow_dispatch:
   release:
     types: [created]
-  push:
-    tags:
-      - '*'
 
 permissions: read-all
 
