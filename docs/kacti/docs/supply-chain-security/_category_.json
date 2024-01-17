@@ -1,0 +1,8 @@
+{
+    "label": "Supply-chain Security",
+    "position": 3,
+    "link": {
+      "type": "generated-index",
+      "description": "Supply-chain security for Kacti components"
+    }
+  }
