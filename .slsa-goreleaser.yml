@@ -19,3 +19,9 @@ goarch: amd64
 # {{ .Os }} will be replaced by goos field in the config file.
 # {{ .Arch }} will be replaced by goarch field in the config file.
 binary: kacti-{{ .Os }}-{{ .Arch }}
+
+ldflags:
+  - "-X github.com/shaneboulden/kacti/cmd.Version={{ .Env.VERSION }}"
+  - "-X github.com/shaneboulden/kacti/cmd.Commit={{ .Env.COMMIT }}"
+  - "-X github.com/shaneboulden/kacti/cmd.CommitDate={{ .Env.COMMIT_DATE }}"
+  - "-X github.com/shaneboulden/kacti/cmd.TreeState={{ .Env.TREE_STATE }}"
