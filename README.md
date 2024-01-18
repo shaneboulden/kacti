@@ -6,24 +6,12 @@
 
 `kacti` is designed to functionally test whether admission control is correctly configured. It attempts to deploy known-bad containers to Kubernetes clusters, and verifies whether the containers successfully deploy.
 
-`kacti` uses a standard format for describing tests, shown below:
+## Quick start
+Grab the latest `kacti` binary:
 ```
----
-kacti-tests:
-  - name: log4shell
-    description: |
-      Tests whether container images vulnerable to Log4Shell (CVE-2021-44228)
-      are accepted by the cluster
-    image: quay.io/smileyfritz/log4shell-app:v0.5
-    namespace: kacti
-```
-
-Kacti returns results and information about why the test passed / failed.
-
-## Getting started
-Currently `kacti` supports pre-release builds. You can grab a binary from the releases:
-```
-curl -Lo kacti https://github.com/shaneboulden/kacti/releases/download/v0.1.1/kacti-linux-amd64
+$ curl -Lo kacti https://github.com/shaneboulden/kacti/releases/latest/download/kacti-linux-amd64 && \
+      sudo mv kacti-linux-amd64 /usr/local/bin/kacti && \
+      chmod 0755 /usr/local/bin/kacti
 ```
 Ensure that you're logged into a Kubernetes cluster and have permissions to create deployments:
 ```
@@ -66,5 +54,9 @@ pwnkit { ns: kacti / img:quay.io/the-worst-containers/pwnkit:v0.2 }
 log4shell { ns: kacti / img:quay.io/smileyfritz/log4shell-app:v0.5 }
  -> Success, Deployment scaled to zero replicas
 ```
+You can find more `kacti` guides in the [docs](https://kacti.dev/docs/intro).
+
 ## kacti and SLSA
 `kacti` binaries are signed with Sigstore, and provenance is available and stored in the public-good Rekor instance. 
+
+Check out the [docs](https://kacti.dev/docs/supply-chain-security/verifying-binaries) for steps to verify `kacti` binary provenance.
