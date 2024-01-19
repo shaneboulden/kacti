@@ -34,10 +34,17 @@ var versionCmd = &cobra.Command{
 	Short: "version",
 
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("Version: %s\nCommit: %s\nCommit Date: %s\nTree State: %s\n", Version, Commit, CommitDate, TreeState)
+		verbose, _ := cmd.Flags().GetBool("verbose")
+		if verbose {
+			fmt.Printf("Version: v%s\nCommit: %s\nCommit Date: %s\nTree State: %s\n", Version, Commit, CommitDate, TreeState)
+		} else {
+			fmt.Printf("v%s\n", Version)
+		}
 	},
 }
 
 func init() {
+	// Here you define flags for the command
+	versionCmd.Flags().BoolP("verbose", "v", false, "Show verbose version info")
 	rootCmd.AddCommand(versionCmd)
 }
