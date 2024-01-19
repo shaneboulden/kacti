@@ -28,7 +28,8 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
+	k8syaml "sigs.k8s.io/yaml"
+	goyaml 	"gopkg.in/yaml.v3"
 
 	appsv1 "k8s.io/api/apps/v1"
 	apiv1 "k8s.io/api/core/v1"
@@ -54,6 +55,7 @@ type Test struct {
 	Name      string `yaml:"name"`
 	Namespace string `yaml:"namespace"`
 	Image     string `yaml:"image"`
+	Template  string `yaml:"template"`
 }
 
 // testCmd represents the test command
@@ -67,7 +69,8 @@ Tests are specififed in files that reference test names, namespaces and images. 
 kacti-tests:
 - name: pwnkit
   image: quay.io/the-worst-containers/pwnkit:v0.2
-  namespace: app-deploy`,
+  namespace: app-deploy
+  template: deploy-template.yaml`,
 	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		errCode := runTest(strings.Join(args, " "))
@@ -107,7 +110,7 @@ func runTest(file string) int {
 
 	var testConfig KactiTests
 
-	err = yaml.Unmarshal(data, &testConfig)
+	err = goyaml.Unmarshal(data, &testConfig)
 	if err != nil {
 		fmt.Println(err)
 		return ExitErr
@@ -115,7 +118,7 @@ func runTest(file string) int {
 
 	for _, test := range testConfig.Tests {
 		fmt.Println(("Running test: " + test.Name + " { ns: " + test.Namespace + " / img: " + test.Image + " }"))
-		// - try and deploy the workload
+
 		i := int32(1)
 		deploymentsClient := clientset.AppsV1().Deployments(test.Namespace)
 
@@ -148,10 +151,17 @@ func runTest(file string) int {
 			},
 		}
 
+		if test.Template != "" {
+			parseTemplate(test.Template, test, deployment)
+		}
+
 		Ctx := context.Background()
 
-		// we don't care about the message or response - we'll just test whether the files were created
-		deploymentsClient.Create(Ctx, deployment, metav1.CreateOptions{})
+		// Create the deployment on the cluster
+		_, err := deploymentsClient.Create(Ctx, deployment, metav1.CreateOptions{})
+		if err != nil {
+			fmt.Printf("Error creating Deployment: %v\n", err)
+		}
 	}
 
 	// Currently this is just a sleep to give StackRox time to scale
@@ -202,6 +212,29 @@ func checkAdmissionControl(clientset *kubernetes.Clientset, namespace, deploymen
 	}
 
 	return "Deployment was created successfully and scaled up", errors.New("Admission control failed")
+}
+
+func parseTemplate(templateRef string, test Test, deployment *appsv1.Deployment) {
+
+	yamlFile, err := ioutil.ReadFile(templateRef)
+	if err != nil {
+		fmt.Printf("Error reading deployment template: %v\n", err)
+		os.Exit(1)
+	}
+
+	err = k8syaml.Unmarshal(yamlFile, deployment)
+	if err != nil {
+		fmt.Printf("Error unmarshalling deployment template: %v\n", err)
+		os.Exit(1)
+	}
+
+	// set name, namespace, labels and images
+	deployment.ObjectMeta.Name = test.Name
+	deployment.ObjectMeta.Namespace = test.Namespace
+
+	// set labels
+	deployment.ObjectMeta.Labels["app"] = test.Name
+	deployment.Spec.Template.ObjectMeta.Labels["app"] = test.Name
 }
 
 func init() {
