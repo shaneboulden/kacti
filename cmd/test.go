@@ -228,13 +228,17 @@ func parseTemplate(templateRef string, test Test, deployment *appsv1.Deployment)
 		os.Exit(1)
 	}
 
-	// set name, namespace, labels and images
+	// set name, namespace
 	deployment.ObjectMeta.Name = test.Name
 	deployment.ObjectMeta.Namespace = test.Namespace
 
 	// set labels
 	deployment.ObjectMeta.Labels["app"] = test.Name
 	deployment.Spec.Template.ObjectMeta.Labels["app"] = test.Name
+	deployment.Spec.Template.ObjectMeta.Namespace = test.Namespace
+
+	// set container images
+	deployment.Spec.Template.Spec.Containers[0].Image = test.Image
 }
 
 func init() {
