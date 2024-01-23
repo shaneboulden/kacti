@@ -2,10 +2,9 @@
 sidebar_position: 1
 ---
 
-# Sea trials
-When a ship is newly constructed or comes out of a significant refit period it will go through "sea trials", or a "shakedown". This is a series of trials to test the vessel's seaworthiness - testing its speed, maneuverability, safety equipment, etc. It's conducted prior to commissioning and acceptance.
-
 # Kacti trials
+
+When a ship is newly constructed or comes out of a significant refit period it will go through "sea trials", or a "shakedown". This is a series of trials to test the vessel's seaworthiness - testing its speed, maneuverability, safety equipment, etc. It's conducted prior to commissioning and acceptance.
 
 In a similar way, `kacti` uses trials to validate Kubernetes admission control. How does the admission controller perform - does it block workloads containing critical CVEs, or trying to expose SSH? Does it permit valid workloads to be accepted by the cluster?
 
