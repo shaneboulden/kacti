@@ -9,7 +9,7 @@ sidebar_position: 1
 
 `kacti` is designed to functionally test whether admission control is correctly configured. It attempts to deploy known-bad containers to Kubernetes clusters, and verifies whether the containers successfully deploy.
 
-`kacti` uses a simple, human-readable format for admission control validatation tests ([trials](/docs/kacti-trials/kacti-trials)), shown below:
+`kacti` uses a simple, human-readable format for admission control validatation tests ([trials](/docs/kacti-trials/)), shown below:
 ```yaml
 ---
 - name: log4shell
