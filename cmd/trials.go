@@ -28,8 +28,8 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+	goyaml "gopkg.in/yaml.v3"
 	k8syaml "sigs.k8s.io/yaml"
-	goyaml 	"gopkg.in/yaml.v3"
 
 	appsv1 "k8s.io/api/apps/v1"
 	apiv1 "k8s.io/api/core/v1"
@@ -47,38 +47,32 @@ const (
 	ExitErr = 1
 )
 
-type KactiTests struct {
-	Tests []Test `yaml:"kacti-tests"`
-}
-
-type Test struct {
+type Trial struct {
 	Name      string `yaml:"name"`
 	Namespace string `yaml:"namespace"`
 	Image     string `yaml:"image"`
 	Template  string `yaml:"template"`
 }
 
-// testCmd represents the test command
-var testCmd = &cobra.Command{
-	Use:   "test",
+var trialsCmd = &cobra.Command{
+	Use:   "trials",
 	Short: "Functionally test admission control",
-	Long: `Perform functional verification tests against Kubernetes admission controllers.
+	Long: `Perform functional verification trials against Kubernetes admission controllers.
 
-Tests are specififed in files that reference test names, namespaces and images. For example:
+Trials are specififed in files that reference names, namespaces and images. For example:
 
-kacti-tests:
 - name: pwnkit
   image: quay.io/the-worst-containers/pwnkit:v0.2
   namespace: app-deploy
   template: deploy-template.yaml`,
 	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		errCode := runTest(strings.Join(args, " "))
+		errCode := runTrial(strings.Join(args, " "))
 		os.Exit(errCode)
 	},
 }
 
-func runTest(file string) int {
+func runTrial(file string) int {
 	var kubeconfig *string
 	if os.Getenv("KUBECONFIG") != "" {
 		kubeconfig = flag.String("kubeconfig", os.Getenv("KUBECONFIG"), "environment variable holding kubeconfig")
@@ -100,50 +94,50 @@ func runTest(file string) int {
 		panic(err)
 	}
 
-	// read the YAML file defining tests
-	fmt.Println("Using tests from: " + file)
+	// read the YAML file defining trials
+	fmt.Println("Using trials from: " + file)
 	data, err := ioutil.ReadFile(file)
 	if err != nil {
 		fmt.Println(err)
 		return ExitErr
 	}
 
-	var testConfig KactiTests
+	var trials []Trial
 
-	err = goyaml.Unmarshal(data, &testConfig)
+	err = goyaml.Unmarshal(data, &trials)
 	if err != nil {
 		fmt.Println(err)
 		return ExitErr
 	}
 
-	for _, test := range testConfig.Tests {
-		fmt.Println(("Running test: " + test.Name + " { ns: " + test.Namespace + " / img: " + test.Image + " }"))
+	for _, trial := range trials {
+		fmt.Println(("Running trial: " + trial.Name + " { ns: " + trial.Namespace + " / img: " + trial.Image + " }"))
 
 		i := int32(1)
-		deploymentsClient := clientset.AppsV1().Deployments(test.Namespace)
+		deploymentsClient := clientset.AppsV1().Deployments(trial.Namespace)
 
 		deployment := &appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: test.Name,
+				Name: trial.Name,
 			},
 			Spec: appsv1.DeploymentSpec{
 				Replicas: &i,
 				Selector: &metav1.LabelSelector{
 					MatchLabels: map[string]string{
-						"app": test.Name,
+						"app": trial.Name,
 					},
 				},
 				Template: apiv1.PodTemplateSpec{
 					ObjectMeta: metav1.ObjectMeta{
 						Labels: map[string]string{
-							"app": test.Name,
+							"app": trial.Name,
 						},
 					},
 					Spec: apiv1.PodSpec{
 						Containers: []apiv1.Container{
 							{
-								Name:  "test",
-								Image: test.Image,
+								Name:  trial.Name,
+								Image: trial.Image,
 							},
 						},
 					},
@@ -151,8 +145,8 @@ func runTest(file string) int {
 			},
 		}
 
-		if test.Template != "" {
-			parseTemplate(test.Template, test, deployment)
+		if trial.Template != "" {
+			parseTemplate(trial.Template, trial, deployment)
 		}
 
 		Ctx := context.Background()
@@ -168,32 +162,32 @@ func runTest(file string) int {
 	// the deployment replicas down. It's not waiting on any condition...
 	time.Sleep(8 * time.Second)
 
-	r := make(map[Test]string)
-	n := make(map[Test]int32)
-	for _, test := range testConfig.Tests {
-		result, err := checkAdmissionControl(clientset, test.Namespace, test.Name)
-		r[test] = result
+	r := make(map[Trial]string)
+	n := make(map[Trial]int32)
+	for _, trial := range trials {
+		result, err := checkAdmissionControl(clientset, trial.Namespace, trial.Name)
+		r[trial] = result
 		if err != nil {
-			n[test] = ResultFail
+			n[trial] = ResultFail
 		} else {
-			n[test] = ResultPass
+			n[trial] = ResultPass
 		}
 
 		// cleanup
-		deploymentsClient := clientset.AppsV1().Deployments(test.Namespace)
-		deploymentsClient.Delete(context.Background(), test.Name, *&metav1.DeleteOptions{})
+		deploymentsClient := clientset.AppsV1().Deployments(trial.Namespace)
+		deploymentsClient.Delete(context.Background(), trial.Name, *&metav1.DeleteOptions{})
 	}
 
 	// print results and set return code
 	fmt.Printf("Results:\n")
 	var retCode = ExitOk
-	for _, test := range testConfig.Tests {
-		fmt.Printf(test.Name + " { ns: " + test.Namespace + " / img:" + test.Image + " }\n")
-		if n[test] == ResultPass {
-			fmt.Printf(" -> %s, %s\n\n", color.GreenString("Success"), r[test])
+	for _, trial := range trials {
+		fmt.Printf(trial.Name + " { ns: " + trial.Namespace + " / img:" + trial.Image + " }\n")
+		if n[trial] == ResultPass {
+			fmt.Printf(" -> %s, %s\n\n", color.GreenString("Success"), r[trial])
 		} else {
 			retCode = ExitErr
-			fmt.Printf(" -> %s, %s\n\n", color.RedString("Failed"), r[test])
+			fmt.Printf(" -> %s, %s\n\n", color.RedString("Failed"), r[trial])
 		}
 	}
 	return retCode
@@ -214,7 +208,7 @@ func checkAdmissionControl(clientset *kubernetes.Clientset, namespace, deploymen
 	return "Deployment was created successfully and scaled up", errors.New("Admission control failed")
 }
 
-func parseTemplate(templateRef string, test Test, deployment *appsv1.Deployment) {
+func parseTemplate(templateRef string, trial Trial, deployment *appsv1.Deployment) {
 
 	yamlFile, err := ioutil.ReadFile(templateRef)
 	if err != nil {
@@ -229,18 +223,18 @@ func parseTemplate(templateRef string, test Test, deployment *appsv1.Deployment)
 	}
 
 	// set name, namespace
-	deployment.ObjectMeta.Name = test.Name
-	deployment.ObjectMeta.Namespace = test.Namespace
+	deployment.ObjectMeta.Name = trial.Name
+	deployment.ObjectMeta.Namespace = trial.Namespace
 
 	// set labels
-	deployment.ObjectMeta.Labels["app"] = test.Name
-	deployment.Spec.Template.ObjectMeta.Labels["app"] = test.Name
-	deployment.Spec.Template.ObjectMeta.Namespace = test.Namespace
+	deployment.ObjectMeta.Labels["app"] = trial.Name
+	deployment.Spec.Template.ObjectMeta.Labels["app"] = trial.Name
+	deployment.Spec.Template.ObjectMeta.Namespace = trial.Namespace
 
 	// set container images
-	deployment.Spec.Template.Spec.Containers[0].Image = test.Image
+	deployment.Spec.Template.Spec.Containers[0].Image = trial.Image
 }
 
 func init() {
-	rootCmd.AddCommand(testCmd)
+	rootCmd.AddCommand(trialsCmd)
 }
