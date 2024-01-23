@@ -1,20 +1,19 @@
 ---
-sidebar_position: 1
+sidebar_position: 2
 ---
 
 # Using templates
 
-`kacti` supports templated deployments. You can reference templates in tests using the `template` keyword:
-```
+`kacti` supports templated deployments. You can reference templates in trials using the `template` keyword:
+```yaml
 ---
-kacti-tests:
-  - name: log4shell
-    description: |
-      Tests whether container images vulnerable to Log4Shell (CVE-2021-44228)
-      are accepted by the cluster
-    image: quay.io/smileyfritz/log4shell-app:v0.5
-    namespace: kacti
-    template: deploy-template.yaml
+- name: log4shell
+  description: |
+    Tests whether container images vulnerable to Log4Shell (CVE-2021-44228)
+    are accepted by the cluster
+  image: quay.io/smileyfritz/log4shell-app:v0.5
+  namespace: kacti
+  template: deploy-template.yaml
 ```
 Templates should contain a complete Kubernetes deployment. `kacti` will replace the name, image and namespace for the test using the template.
 
@@ -25,7 +24,7 @@ You can use templates to validate deployment configuration, for example:
 
 ## Example template usage
 Create a template file:
-```
+```bash
 cat << EOF > template.yaml
 ---
 apiVersion: apps/v1
@@ -52,24 +51,24 @@ spec:
         name: test
 EOF
 ```
-Reference the template if a `kacti-tests` YAML file:
-```
+Reference the template in a trials YAML file:
+```bash
 cat << EOF > kacti.yaml
-kacti-tests:
-  - name: log4shell
-    description: |
-      Tests whether container images vulnerable to Log4Shell (CVE-2021-44228)
-      are accepted by the cluster
-    image: quay.io/smileyfritz/log4shell-app:v0.5
-    namespace: kacti
-    template: deploy-template.yaml
+---
+- name: log4shell
+  description: |
+    Tests whether container images vulnerable to Log4Shell (CVE-2021-44228)
+    are accepted by the cluster
+  image: quay.io/smileyfritz/log4shell-app:v0.5
+  namespace: kacti
+  template: deploy-template.yaml
 EOF
 ```
-Run the test:
+Run the trial:
 ```
-kacti test kacti.yaml
+kacti trials kacti.yaml
 Setting up kubeconfig from: /home/user/blue-env/kubeconfig
-Using tests from: kacti.yaml
+Using trials from: kacti.yaml
 Running test: pwnkit { ns: kacti / img: quay.io/the-worst-containers/pwnkit:v0.2 }
 Error creating Deployment: admission webhook "policyeval.stackrox.io" denied the request:
 The attempted operation violated 1 enforced policy, described below:
