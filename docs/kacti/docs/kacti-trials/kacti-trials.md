@@ -12,22 +12,19 @@ Each trial represents a distinct test, validating whether the container image / 
 
 Trials consist of a Kubernetes API under test (currently only Deployments are supported), a name and description, a namespace, and an image.
 
-`kacti` uses a simple, human-readable format to describe admission control trials. You can see an example below:
-```yaml
----
-- name: log4shell
-  description: |
-    Verifies whether container images vulnerable to Log4Shell (CVE-2021-44228)
-    are accepted by the cluster
-  image: quay.io/smileyfritz/log4shell-app:v0.5
-  namespace: kacti
-  template: deploy-template.yaml
+You can run trials using the following command:
 ```
+$  kacti trials --deploy --namespace kacti --image quay.io/smileyfritz/log4shell-app:v0.5 log4shell
+```
+In this example:
+- The name of the trial is `log4shell`
+- `kacti` will attempt to create a Kubernetes deployment in the namespace `kacti`, named `log4shell`
+- The container image used for the deployment will be `quay.io/smileyfritz/log4shell-app:v0.5`
 
-Let's look at this file a little closer. Each trial is a list element and has the following features: 
-- **name** The name of the test, allows you to see which test is being run and results in the output.
-- **description** This is a more detailed explanation of what is being tested, e.g. specific CVEs or 
-- **image** This is a vulnerable container image that **should be blocked* by the cluster, if the test is successful. This corresponds directly with the test, i.e. if this test is for CVE-2021-44228, then the image will be vulnerable to this CVE.
-- **namespace** The namespace to create this deployment in. StackRox allows you to apply admission control policies to different namespaces, and this allows you to run different tests in different namespaces.
-- **template** (optional) A templated Kubernetes deployment. You can use templates to specify requests and limits, set the security context on a deployment, or test whether deployments are accepted that request privilege escalation.
-
+`kacti` will display the result of the trial. If the deployment was successfully created and scaled up, the result will be a `failure`. Otherwise, if the deployment creation was blocked, or the number of replicas was scaled to zero, the result will be `success`.
+```
+$ kacti trials --deploy --namespace kacti --image quay.io/smileyfritz/log4shell-app:v0.5 log4shell
+Setting up kubeconfig from: /home/user/.kube/config
+Running trial: log4shell { ns: kacti / img: quay.io/smileyfritz/log4shell-app:v0.5 }
+ -> Success, Deployment scaled to zero replicas
+```
