@@ -16,13 +16,13 @@ $ curl -LO https://github.com/shaneboulden/kacti/releases/download/$(kacti versi
 ```
 You can then use the `slsa-verifier` to verify the binary
 ```bash
-$ slsa-verifier verify-artifact --provenance-path kacti-linux-amd64.intoto.jsonl --source-tag $(kacti version) --source-uri github.com/shaneboulden/kacti /path/to/kacti
+$ slsa-verifier verify-artifact --provenance-path kacti-linux-amd64.intoto.jsonl --source-tag $(kacti version) --source-uri github.com/shaneboulden/kacti $(which kacti)
 ```
 If everything checks out, you'll see that the verification was successful:
 ```bash
-Verified signature against tlog entry index 64436711 at URL: https://rekor.sigstore.dev/api/v1/log/entries/24296fb24b8ad77aa170f0953fbd003e3c832b9c0a940636aa7f8dda165af6af1ca4b5e87503cc5d
-Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/builder_go_slsa3.yml@refs/tags/v1.9.0" at commit ca9d59798b31d7eb6ac126a5737e0dab7ea1302c
-Verifying artifact /path/to/kacti: PASSED
+Verified signature against tlog entry index 67558870 at URL: https://rekor.sigstore.dev/api/v1/log/entries/24296fb24b8ad77a7489ad0f9b01a8af8a046835e0e1d7015c6e8985be217c32cda158add851335e
+Verified build using builder "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/builder_go_slsa3.yml@refs/tags/v1.9.0" at commit 8bac905a81d747c47dc4ec9dfa6f1e28f9e432df
+Verifying artifact /usr/local/bin/kacti: PASSED
 
 PASSED: Verified SLSA provenance
 ```
