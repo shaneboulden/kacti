@@ -47,6 +47,14 @@ const (
 	ExitErr = 1
 )
 
+var runDeploy = false
+var runPod = false
+var runFile = false
+
+var trialName = ""
+var trialNamespace = ""
+var trialImage = ""
+
 type Trial struct {
 	Name      string `yaml:"name"`
 	Namespace string `yaml:"namespace"`
@@ -67,33 +75,68 @@ Trials are specififed in files that reference names, namespaces and images. For 
   template: deploy-template.yaml`,
 	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		errCode := runTrial(strings.Join(args, " "))
+		// set up kubeconfig
+		var kubeconfig *string
+		if os.Getenv("KUBECONFIG") != "" {
+			kubeconfig = flag.String("kubeconfig", os.Getenv("KUBECONFIG"), "environment variable holding kubeconfig")
+		} else if home := homedir.HomeDir(); home != "" {
+			kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
+		} else {
+			kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
+		}
+
+		flag.Parse()
+		fmt.Println("Setting up kubeconfig from: " + *kubeconfig)
+
+		config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+		if err != nil {
+			panic(err)
+		}
+		clientset, err := kubernetes.NewForConfig(config)
+		if err != nil {
+			panic(err)
+		}
+
+		// run the trials using kubeconfig and flags provided
+		var errCode = 1
+		if runFile {
+			errCode = runTrialsFromFile(strings.Join(args, " "), clientset)
+		} else if runDeploy {
+			trial := Trial{strings.Join(args, ""), trialNamespace, trialImage, ""}
+			errCode = runDeployTrialStandalone(trial, clientset)
+		}
 		os.Exit(errCode)
 	},
 }
 
-func runTrial(file string) int {
-	var kubeconfig *string
-	if os.Getenv("KUBECONFIG") != "" {
-		kubeconfig = flag.String("kubeconfig", os.Getenv("KUBECONFIG"), "environment variable holding kubeconfig")
-	} else if home := homedir.HomeDir(); home != "" {
-		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
+func runDeployTrialStandalone(trial Trial, clientset *kubernetes.Clientset) int {
+	fmt.Println(("Running trial: " + trial.Name + " { ns: " + trial.Namespace + " / img: " + trial.Image + " }"))
+	runDeploymentTrial(trial, clientset)
+
+	// Currently this is just a sleep to give StackRox time to scale
+	// the deployment replicas down. It's not waiting on any condition...
+	time.Sleep(8 * time.Second)
+
+	result, err := checkAdmissionControl(clientset, trial.Namespace, trial.Name)
+
+	// print results and set return code
+	var retCode = ExitErr
+	if err != nil {
+		fmt.Printf(" -> %s, %s\n\n", color.RedString("Failed"), result)
 	} else {
-		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
+		fmt.Printf(" -> %s, %s\n\n", color.GreenString("Success"), result)
+		retCode = ExitOk
+
 	}
 
-	flag.Parse()
-	fmt.Println("Setting up kubeconfig from: " + *kubeconfig)
+	// cleanup
+	deploymentsClient := clientset.AppsV1().Deployments(trial.Namespace)
+	deploymentsClient.Delete(context.Background(), trial.Name, *&metav1.DeleteOptions{})
 
-	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
-	if err != nil {
-		panic(err)
-	}
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		panic(err)
-	}
+	return retCode
+}
 
+func runTrialsFromFile(file string, clientset *kubernetes.Clientset) int {
 	// read the YAML file defining trials
 	fmt.Println("Using trials from: " + file)
 	data, err := ioutil.ReadFile(file)
@@ -112,50 +155,7 @@ func runTrial(file string) int {
 
 	for _, trial := range trials {
 		fmt.Println(("Running trial: " + trial.Name + " { ns: " + trial.Namespace + " / img: " + trial.Image + " }"))
-
-		i := int32(1)
-		deploymentsClient := clientset.AppsV1().Deployments(trial.Namespace)
-
-		deployment := &appsv1.Deployment{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: trial.Name,
-			},
-			Spec: appsv1.DeploymentSpec{
-				Replicas: &i,
-				Selector: &metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						"app": trial.Name,
-					},
-				},
-				Template: apiv1.PodTemplateSpec{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"app": trial.Name,
-						},
-					},
-					Spec: apiv1.PodSpec{
-						Containers: []apiv1.Container{
-							{
-								Name:  trial.Name,
-								Image: trial.Image,
-							},
-						},
-					},
-				},
-			},
-		}
-
-		if trial.Template != "" {
-			parseTemplate(trial.Template, trial, deployment)
-		}
-
-		Ctx := context.Background()
-
-		// Create the deployment on the cluster
-		_, err := deploymentsClient.Create(Ctx, deployment, metav1.CreateOptions{})
-		if err != nil {
-			fmt.Printf("Error creating Deployment: %v\n", err)
-		}
+		runDeploymentTrial(trial, clientset)
 	}
 
 	// Currently this is just a sleep to give StackRox time to scale
@@ -208,9 +208,55 @@ func checkAdmissionControl(clientset *kubernetes.Clientset, namespace, deploymen
 	return "Deployment was created successfully and scaled up", errors.New("Admission control failed")
 }
 
+func runDeploymentTrial(trial Trial, clientset *kubernetes.Clientset) {
+	i := int32(1)
+	deploymentsClient := clientset.AppsV1().Deployments(trial.Namespace)
+
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: trial.Name,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: &i,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": trial.Name,
+				},
+			},
+			Template: apiv1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app": trial.Name,
+					},
+				},
+				Spec: apiv1.PodSpec{
+					Containers: []apiv1.Container{
+						{
+							Name:  trial.Name,
+							Image: trial.Image,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	if trial.Template != "" {
+		parseTemplate(trial.Template, trial, deployment)
+	}
+
+	Ctx := context.Background()
+
+	// Create the deployment on the cluster
+	_, err := deploymentsClient.Create(Ctx, deployment, metav1.CreateOptions{})
+	if err != nil {
+		fmt.Printf("Error creating Deployment: %v\n", err)
+	}
+}
+
 func parseTemplate(templateRef string, trial Trial, deployment *appsv1.Deployment) {
 
-	yamlFile, err := ioutil.ReadFile(templateRef)
+	yamlFile, err := os.ReadFile(templateRef)
 	if err != nil {
 		fmt.Printf("Error reading deployment template: %v\n", err)
 		os.Exit(1)
@@ -236,5 +282,21 @@ func parseTemplate(templateRef string, trial Trial, deployment *appsv1.Deploymen
 }
 
 func init() {
+	// add flags for declarative and imperative trial runs
+	trialsCmd.Flags().BoolVar(&runDeploy, "deploy", false, "Run a deployment trial")
+	trialsCmd.Flags().BoolVar(&runFile, "file", false, "Run a set of trials from a file")
+
+	// add flags required for `deploy` and `pod` trials
+	trialsCmd.Flags().StringVar(&trialNamespace, "namespace", "ns", "Namespace for the trial")
+	trialsCmd.Flags().StringVar(&trialImage, "image", "i", "Image for the trial")
+
+	// set flags as mutually exclusive, using the following rules:
+	// --deploy -> used standalone
+	// --file -> used standalone
+	trialsCmd.MarkFlagsMutuallyExclusive("deploy", "file")
+
+	// set flags required for imperative trials
+	trialsCmd.MarkFlagsRequiredTogether("deploy", "namespace", "image")
+
 	rootCmd.AddCommand(trialsCmd)
 }
