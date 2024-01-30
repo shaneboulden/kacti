@@ -66,15 +66,8 @@ type Trial struct {
 var trialsCmd = &cobra.Command{
 	Use:   "trials",
 	Short: "Functionally test admission control",
-	Long: `Perform functional verification trials against Kubernetes admission controllers.
-
-Trials are specififed in files that reference names, namespaces and images. For example:
-
-- name: pwnkit
-  image: quay.io/the-worst-containers/pwnkit:v0.2
-  namespace: app-deploy
-  template: deploy-template.yaml`,
-	Args: cobra.MinimumNArgs(1),
+	Long:  `Perform functional verification trials against Kubernetes admission controllers`,
+	Args:  cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		// set up kubeconfig
 		var kubeconfig *string
