@@ -40,8 +40,6 @@ $ cat << EOF > kacti.yaml
 EOF
 
 $ kacti trials --file kacti.yaml
-Setting up kubeconfig from: /home/user/.kube/config
-Using trials from: kacti.yaml
 Running trial: log4shell { ns: kacti / img: quay.io/smileyfritz/log4shell-app:v0.5 }
 Results:
 log4shell { ns: kacti / img:quay.io/smileyfritz/log4shell-app:v0.5 }

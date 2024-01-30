@@ -23,8 +23,6 @@ yes
 Run `kacti`:
 ```
 $ kacti trials --deploy --namespace kacti --image quay.io/smileyfritz/log4shell-app:v0.5 log4shell
-Setting up kubeconfig from: /home/user/.kube/config
-Running trial: log4shell { ns: kacti / img: quay.io/smileyfritz/log4shell-app:v0.5 }
  -> Success, Deployment scaled to zero replicas
 ```
 You can find more `kacti` guides in the [docs](https://kacti.dev/docs/intro).
