@@ -54,6 +54,8 @@ var trialName = ""
 var trialNamespace = ""
 var trialImage = ""
 
+var verbose = false
+
 type Trial struct {
 	Name      string `yaml:"name"`
 	Namespace string `yaml:"namespace"`
@@ -85,8 +87,9 @@ Trials are specififed in files that reference names, namespaces and images. For 
 		}
 
 		flag.Parse()
-		fmt.Println("Setting up kubeconfig from: " + *kubeconfig)
-
+		if verbose {
+			fmt.Println(color.YellowString("Setting up kubeconfig from: " + *kubeconfig))
+		}
 		config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
 		if err != nil {
 			panic(err)
@@ -109,8 +112,9 @@ Trials are specififed in files that reference names, namespaces and images. For 
 }
 
 func runDeployTrialStandalone(trial Trial, clientset *kubernetes.Clientset) int {
-	fmt.Println(("Running trial: " + trial.Name + " { ns: " + trial.Namespace + " / img: " + trial.Image + " }"))
-	runDeploymentTrial(trial, clientset)
+	if verbose {
+		fmt.Println(color.YellowString("Running trial: " + trial.Name + " { ns: " + trial.Namespace + " / img: " + trial.Image + " }"))
+	}
 
 	// Currently this is just a sleep to give StackRox time to scale
 	// the deployment replicas down. It's not waiting on any condition...
@@ -137,7 +141,9 @@ func runDeployTrialStandalone(trial Trial, clientset *kubernetes.Clientset) int 
 
 func runTrialsFromFile(file string, clientset *kubernetes.Clientset) int {
 	// read the YAML file defining trials
-	fmt.Println("Using trials from: " + file)
+	if verbose {
+		fmt.Println(color.YellowString("Using trials from: " + file))
+	}
 	data, err := os.ReadFile(file)
 	if err != nil {
 		fmt.Println(err)
@@ -153,7 +159,9 @@ func runTrialsFromFile(file string, clientset *kubernetes.Clientset) int {
 	}
 
 	for _, trial := range trials {
-		fmt.Println(("Running trial: " + trial.Name + " { ns: " + trial.Namespace + " / img: " + trial.Image + " }"))
+		if verbose {
+			fmt.Println(color.YellowString("Running trial: " + trial.Name + " { ns: " + trial.Namespace + " / img: " + trial.Image + " }"))
+		}
 		runDeploymentTrial(trial, clientset)
 	}
 
@@ -282,12 +290,12 @@ func parseTemplate(templateRef string, trial Trial, deployment *appsv1.Deploymen
 
 func init() {
 	// add flags for declarative and imperative trial runs
-	trialsCmd.Flags().BoolVar(&runDeploy, "deploy", false, "Run a deployment trial")
-	trialsCmd.Flags().BoolVar(&runFile, "file", false, "Run a set of trials from a file")
+	trialsCmd.Flags().BoolVarP(&runDeploy, "deploy", "d", false, "Run a deployment trial")
+	trialsCmd.Flags().BoolVarP(&runFile, "file", "f", false, "Run a set of trials from a file")
 
 	// add flags required for `deploy` and `pod` trials
-	trialsCmd.Flags().StringVar(&trialNamespace, "namespace", "ns", "Namespace for the trial")
-	trialsCmd.Flags().StringVar(&trialImage, "image", "i", "Image for the trial")
+	trialsCmd.Flags().StringVarP(&trialNamespace, "namespace", "n", "", "Namespace for the trial")
+	trialsCmd.Flags().StringVarP(&trialImage, "image", "i", "", "Image for the trial")
 
 	// set flags as mutually exclusive, using the following rules:
 	// --deploy -> used standalone
@@ -296,6 +304,8 @@ func init() {
 
 	// set flags required for imperative trials
 	trialsCmd.MarkFlagsRequiredTogether("deploy", "namespace", "image")
+
+	trialsCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Verbose output")
 
 	rootCmd.AddCommand(trialsCmd)
 }
