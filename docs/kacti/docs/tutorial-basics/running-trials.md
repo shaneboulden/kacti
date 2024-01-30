@@ -1,31 +1,26 @@
 ---
 sidebar_position: 3
 ---
+# Running your first trials
 
+`kacti` uses trials to validate Kubernetes admission control. How does the admission controller perform - does it block workloads containing critical CVEs, or trying to expose SSH? Does it permit valid workloads to be accepted by the cluster?
 
-# Running trials
+Each trial represents a distinct test, validating whether the container image / configuration is blocked, or accepted by the Kubernetes cluster.
 
-Once you've created your trials, you can simply run them using `kacti trials`.
+You can run trials using the following command:
 ```
-$ kacti trials kacti.yaml
+$  kacti trials --deploy --namespace kacti --image quay.io/smileyfritz/log4shell-app:v0.5 log4shell
 ```
-For each trial, `kacti` will attempt to create a deployment in the specified namespace referencing the vulnerable image. If the image is successfully deployed and scaled up, `kacti` will report a **failed** test.
+In this example:
+- The name of the trial is `log4shell`
+- `kacti` will attempt to create a Kubernetes deployment in the namespace `kacti`, named `log4shell`
+- The container image used for the deployment will be `quay.io/smileyfritz/log4shell-app:v0.5`
 
-If the image is scaled down to zero replicas, or the deployment is blocked, `kacti` will report **success**.
-
-You can see this in the output:
+`kacti` will display the result of the trial. If the deployment was successfully created and scaled up, the result will be a `failure`. Otherwise, if the deployment creation was blocked, or the number of replicas was scaled to zero, the result will be `success`.
 ```
-$ kacti trials kacti.yaml
+$ kacti trials --deploy --namespace kacti --image quay.io/smileyfritz/log4shell-app:v0.5 log4shell
 Setting up kubeconfig from: /home/user/.kube/config
-Using tests from: kacti.yaml
-Running test: pwnkit { ns: kacti / img: quay.io/the-worst-containers/pwnkit:v0.2 }
-Running test: log4shell { ns: kacti / img: quay.io/smileyfritz/log4shell-app:v0.5 }
-Results:
-pwnkit { ns: kacti / img:quay.io/the-worst-containers/pwnkit:v0.2 }
- -> Failed, Deployment was created successfully and scaled up
-
-log4shell { ns: kacti / img:quay.io/smileyfritz/log4shell-app:v0.5 }
+Running trial: log4shell { ns: kacti / img: quay.io/smileyfritz/log4shell-app:v0.5 }
  -> Success, Deployment scaled to zero replicas
 ```
-Once `kacti` trials are completed, it will clean up any deployments / pods that were created.
 
