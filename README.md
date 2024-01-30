@@ -10,8 +10,8 @@
 Grab the latest `kacti` binary:
 ```
 $ curl -Lo kacti https://github.com/shaneboulden/kacti/releases/latest/download/kacti-linux-amd64 && \
-      sudo mv kacti-linux-amd64 /usr/local/bin/kacti && \
-      chmod 0755 /usr/local/bin/kacti
+      sudo mv kacti /usr/local/bin/kacti && \
+      sudo chmod 0755 /usr/local/bin/kacti
 ```
 Ensure that you're logged into a Kubernetes cluster and have permissions to create deployments:
 ```
@@ -20,37 +20,11 @@ $ export KUBECONFIG=/path/to/kubeconfig
 $ kubectl auth can-i create deploy
 yes
 ```
-Create a file holding your tests:
-```
-cat << EOF > kacti.yaml
----
-- name: pwnkit
-  description: |
-    Tests whether container images vulnerable to pwnkit (CVE-2021-4034)
-    are accepted the cluster
-  image: quay.io/the-worst-containers/pwnkit:v0.2
-  namespace: kacti
-- name: log4shell
-  description: |
-    Tests whether container images vulnerable to Log4Shell (CVE-2021-44228)
-    are accepted by the cluster
-  image: quay.io/smileyfritz/log4shell-app:v0.5
-  namespace: kacti
-EOF
-```
 Run `kacti`:
 ```
-$ kacti test kacti.yaml
-
+$ kacti trials --deploy --namespace kacti --image quay.io/smileyfritz/log4shell-app:v0.5 log4shell
 Setting up kubeconfig from: /home/user/.kube/config
-Using tests from: kacti.yaml
-Running test: pwnkit { ns: kacti / img: quay.io/the-worst-containers/pwnkit:v0.2 }
-Running test: log4shell { ns: kacti / img: quay.io/smileyfritz/log4shell-app:v0.5 }
-Results:
-pwnkit { ns: kacti / img:quay.io/the-worst-containers/pwnkit:v0.2 }
- -> Failed, Deployment was created successfully and scaled up
-
-log4shell { ns: kacti / img:quay.io/smileyfritz/log4shell-app:v0.5 }
+Running trial: log4shell { ns: kacti / img: quay.io/smileyfritz/log4shell-app:v0.5 }
  -> Success, Deployment scaled to zero replicas
 ```
 You can find more `kacti` guides in the [docs](https://kacti.dev/docs/intro).
