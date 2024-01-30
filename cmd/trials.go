@@ -108,6 +108,7 @@ func runDeployTrialStandalone(trial Trial, clientset *kubernetes.Clientset) int 
 	if verbose {
 		fmt.Println(color.YellowString("Running trial: " + trial.Name + " { ns: " + trial.Namespace + " / img: " + trial.Image + " }"))
 	}
+	runDeploymentTrial(trial, clientset)
 
 	// Currently this is just a sleep to give StackRox time to scale
 	// the deployment replicas down. It's not waiting on any condition...
