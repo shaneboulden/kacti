@@ -20,7 +20,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -139,7 +138,7 @@ func runDeployTrialStandalone(trial Trial, clientset *kubernetes.Clientset) int 
 func runTrialsFromFile(file string, clientset *kubernetes.Clientset) int {
 	// read the YAML file defining trials
 	fmt.Println("Using trials from: " + file)
-	data, err := ioutil.ReadFile(file)
+	data, err := os.ReadFile(file)
 	if err != nil {
 		fmt.Println(err)
 		return ExitErr
