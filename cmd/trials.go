@@ -50,9 +50,12 @@ var runDeploy = false
 var runPod = false
 var runFile = false
 
+var cve2image = make(map[string]string)
+
 var trialName = ""
 var trialNamespace = ""
 var trialImage = ""
+var trialCVE = ""
 
 var verbose = false
 
@@ -97,7 +100,13 @@ var trialsCmd = &cobra.Command{
 		if runFile {
 			errCode = runTrialsFromFile(strings.Join(args, " "), clientset)
 		} else if runDeploy {
-			trial := Trial{strings.Join(args, ""), trialNamespace, trialImage, ""}
+			var trial Trial
+			if trialCVE != "" {
+				// lookup the image from the CVE map. If it doesn't exist, return an error
+				trial = Trial{strings.Join(args, ""), trialNamespace, cve2image[trialCVE], ""}
+			} else {
+				trial = Trial{strings.Join(args, ""), trialNamespace, trialImage, ""}
+			}
 			errCode = runDeployTrialStandalone(trial, clientset)
 		}
 		os.Exit(errCode)
@@ -131,6 +140,18 @@ func runDeployTrialStandalone(trial Trial, clientset *kubernetes.Clientset) int 
 	deploymentsClient.Delete(context.Background(), trial.Name, *&metav1.DeleteOptions{})
 
 	return retCode
+}
+
+func initCVEs() {
+	// Populate the map with sample data
+	cve2image["CVE-2021-44228"] = "quay.io/kacti/log4shell@sha256:f72efa1cb3533220212bc49716a4693b448106b84ca259c20422ab387972eed9"
+	if verbose {
+		fmt.Println(color.YellowString("Initialised CVE map:"))
+		for cve := range cve2image {
+			cveImage := cve2image[cve]
+			fmt.Println(color.YellowString("CVE: %s -> Image: %s\n", cve, cveImage))
+		}
+	}
 }
 
 func runTrialsFromFile(file string, clientset *kubernetes.Clientset) int {
@@ -250,8 +271,8 @@ func runDeploymentTrial(trial Trial, clientset *kubernetes.Clientset) {
 
 	// Create the deployment on the cluster
 	_, err := deploymentsClient.Create(Ctx, deployment, metav1.CreateOptions{})
-	if err != nil {
-		fmt.Printf("Error creating Deployment: %v\n", err)
+	if err != nil && verbose {
+		fmt.Printf(color.YellowString("%v\n", err))
 	}
 }
 
@@ -283,6 +304,9 @@ func parseTemplate(templateRef string, trial Trial, deployment *appsv1.Deploymen
 }
 
 func init() {
+	//initialise CVEs map
+	initCVEs()
+
 	// add flags for declarative and imperative trial runs
 	trialsCmd.Flags().BoolVarP(&runDeploy, "deploy", "d", false, "Run a deployment trial")
 	trialsCmd.Flags().BoolVarP(&runFile, "file", "f", false, "Run a set of trials from a file")
@@ -290,14 +314,16 @@ func init() {
 	// add flags required for `deploy` and `pod` trials
 	trialsCmd.Flags().StringVarP(&trialNamespace, "namespace", "n", "", "Namespace for the trial")
 	trialsCmd.Flags().StringVarP(&trialImage, "image", "i", "", "Image for the trial")
+	trialsCmd.Flags().StringVarP(&trialCVE, "cve", "c", "", "Run a trial for a specific CVE. Used in-place of --image.")
 
 	// set flags as mutually exclusive, using the following rules:
 	// --deploy -> used standalone
 	// --file -> used standalone
 	trialsCmd.MarkFlagsMutuallyExclusive("deploy", "file")
+	trialsCmd.MarkFlagsMutuallyExclusive("cve", "image")
 
 	// set flags required for imperative trials
-	trialsCmd.MarkFlagsRequiredTogether("deploy", "namespace", "image")
+	trialsCmd.MarkFlagsRequiredTogether("deploy", "namespace")
 
 	trialsCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Verbose output")
 
