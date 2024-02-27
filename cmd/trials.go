@@ -47,12 +47,9 @@ const (
 )
 
 var runDeploy = false
-var runPod = false
 var runFile = false
+var dryRun = false
 
-var cve2image = make(map[string]string)
-
-var trialName = ""
 var trialNamespace = ""
 var trialImage = ""
 var trialCVE = ""
@@ -97,10 +94,26 @@ var trialsCmd = &cobra.Command{
 
 		// run the trials using kubeconfig and flags provided
 		var errCode = 1
-		if runFile {
+		var trial Trial
+
+		if dryRun {
+			// if this is a dry-run just print the trial details
+			if runFile {
+				errCode = dryRunFromFile(strings.Join(args, " "))
+			} else if trialCVE != "" {
+				trial = Trial{strings.Join(args, ""), trialNamespace, cve2image[trialCVE], ""}
+				errCode = dryRunStandalone(trial)
+			} else {
+				trial = Trial{strings.Join(args, ""), trialNamespace, trialImage, ""}
+				errCode = dryRunStandalone(trial)
+			}
+		} else if runFile {
+			// otherwise if there is a YAML file specified in the args, use trials from the file
 			errCode = runTrialsFromFile(strings.Join(args, " "), clientset)
 		} else if runDeploy {
-			var trial Trial
+			// finally, run a standalone trial
+			// -> if there is a CVE specified, use the image provided by kacti
+			// -> otherwise, use the provided image
 			if trialCVE != "" {
 				// lookup the image from the CVE map. If it doesn't exist, return an error
 				trial = Trial{strings.Join(args, ""), trialNamespace, cve2image[trialCVE], ""}
@@ -111,6 +124,49 @@ var trialsCmd = &cobra.Command{
 		}
 		os.Exit(errCode)
 	},
+}
+
+func dryRunFromFile(file string) int {
+	// read the YAML file defining trials
+	if verbose {
+		fmt.Println(color.YellowString("Using trials from: " + file))
+	}
+	data, err := os.ReadFile(file)
+	if err != nil {
+		fmt.Println(err)
+		return ExitErr
+	}
+
+	var trials []Trial
+
+	err = goyaml.Unmarshal(data, &trials)
+	if err != nil {
+		fmt.Println(err)
+		return ExitErr
+	}
+
+	fmt.Print(color.WhiteString("Trials:\n"))
+	for _, trial := range trials {
+		fmt.Print(color.WhiteString("- Name: " + trial.Name + "\n"))
+		fmt.Print(color.WhiteString("  Image: " + trial.Image + "\n"))
+		fmt.Print(color.WhiteString("  Namespace: " + trial.Namespace + "\n"))
+		if trial.Template != "" {
+			fmt.Print(color.WhiteString("  Template: " + trial.Template + "\n"))
+		}
+	}
+
+	return 0
+}
+
+func dryRunStandalone(trial Trial) int {
+	fmt.Print(color.WhiteString("- Name: " + trial.Name + "\n"))
+	fmt.Print(color.WhiteString("  Image: " + trial.Image + "\n"))
+	fmt.Print(color.WhiteString("  Namespace: " + trial.Namespace + "\n"))
+	if trial.Template != "" {
+		fmt.Print(color.WhiteString("  Template: " + trial.Template + "\n"))
+	}
+
+	return 0
 }
 
 func runDeployTrialStandalone(trial Trial, clientset *kubernetes.Clientset) int {
@@ -140,18 +196,6 @@ func runDeployTrialStandalone(trial Trial, clientset *kubernetes.Clientset) int 
 	deploymentsClient.Delete(context.Background(), trial.Name, *&metav1.DeleteOptions{})
 
 	return retCode
-}
-
-func initCVEs() {
-	// Populate the map with sample data
-	cve2image["CVE-2021-44228"] = "quay.io/kacti/log4shell@sha256:f72efa1cb3533220212bc49716a4693b448106b84ca259c20422ab387972eed9"
-	if verbose {
-		fmt.Println(color.YellowString("Initialised CVE map:"))
-		for cve := range cve2image {
-			cveImage := cve2image[cve]
-			fmt.Println(color.YellowString("CVE: %s -> Image: %s\n", cve, cveImage))
-		}
-	}
 }
 
 func runTrialsFromFile(file string, clientset *kubernetes.Clientset) int {
@@ -311,7 +355,8 @@ func init() {
 	trialsCmd.Flags().BoolVarP(&runDeploy, "deploy", "d", false, "Run a deployment trial")
 	trialsCmd.Flags().BoolVarP(&runFile, "file", "f", false, "Run a set of trials from a file")
 
-	// add flags required for `deploy` and `pod` trials
+	trialsCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Perform a dry-run and display the trial parameters")
+
 	trialsCmd.Flags().StringVarP(&trialNamespace, "namespace", "n", "", "Namespace for the trial")
 	trialsCmd.Flags().StringVarP(&trialImage, "image", "i", "", "Image for the trial")
 	trialsCmd.Flags().StringVarP(&trialCVE, "cve", "c", "", "Run a trial for a specific CVE. Used in-place of --image.")
@@ -319,6 +364,7 @@ func init() {
 	// set flags as mutually exclusive, using the following rules:
 	// --deploy -> used standalone
 	// --file -> used standalone
+	// --cve used in-place of --image
 	trialsCmd.MarkFlagsMutuallyExclusive("deploy", "file")
 	trialsCmd.MarkFlagsMutuallyExclusive("cve", "image")
 
