@@ -1,15 +1,14 @@
-# Download and invoke cyclonedx-gomod in a single step
 name: CycloneDX SBOM generate
 on:
-    workflow_dispatch:
-    release:
-      types: [created]
+  workflow_dispatch:
+  release:
+    types: [created]
 
 permissions: read-all
 
 jobs:
   generate:
-    uses: CycloneDX/gh-gomod-generate-sbom@v2
+    name: CycloneDX GoMod Generate SBOM
+    uses: CycloneDX/gh-gomod-generate-sbom@v2.0.0
     with:
-      version: v1
       args: mod -licenses -json -output bom.json
