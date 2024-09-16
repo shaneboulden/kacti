@@ -11,5 +11,5 @@ jobs:
   generate:
     uses: CycloneDX/gh-gomod-generate-sbom@v2
     with:
-        version: v1
-        args: mod -licenses -json -output bom.json
+      version: v1
+      args: mod -licenses -json -output bom.json
